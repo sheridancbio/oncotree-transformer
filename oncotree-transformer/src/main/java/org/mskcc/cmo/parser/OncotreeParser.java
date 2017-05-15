@@ -20,38 +20,37 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class OncotreeParser {
-	
+
 	private final static Logger LOG = LoggerFactory.getLogger(OncotreeParser.class);
-	
+
 	private final static String BASE_URL = "http://data.mskcc.org/ontologies/oncotree/";
 	private final static String MAIN_TYPE = "http://data.mskcc.org/ontologies/oncotree/mainType";
 	private final static String NCI = "http://data.mskcc.org/ontologies/oncotree/nci";
 	private final static String UMLS = "http://data.mskcc.org/ontologies/oncotree/umls";
 	private final static String NCCN = "http://data.mskcc.org/ontologies/oncotree/nccn";
 	private final static String COLOR = "http://data.mskcc.org/ontologies/oncotree/color";
-	
+
 	private static Property MAIN_TYPE_P = null;
 	private static Property NCI_P = null;
 	private static Property UMLS_P = null;
 	private static Property NCCN_P = null;
 	private static Property COLOR_P = null;
-	
+
 	private static int id = 1;
 
-	
 	public static void main(String[] args) throws IOException{
 		String file = "oncotree.csv";
 		Model m = createOncotreeModel( parseOncotreeFile(file));
 		m.write(System.out);
 		m.write(new FileWriter("out"));
 	}
-	
+
 	public static LinkedList<OncotreeConcept> parseOncotreeFile(String file){
 		BufferedReader in = null;
 		String strLine;
 		LinkedList<OncotreeConcept> concepts = new LinkedList<OncotreeConcept>();
 		boolean first = true;
-		
+
 		try{
 			in = new BufferedReader(new FileReader(file));
 			while((strLine=in.readLine())!=null){
@@ -64,16 +63,16 @@ public class OncotreeParser {
 		}catch(Exception e){
 			LOG.error("Exception while parsing file " + file, e);
 		}
-		return concepts;		
+		return concepts;
 	}
-	
+
 	public static Model createOncotreeModel(LinkedList<OncotreeConcept> concepts){
 		Model model = ModelFactory.createDefaultModel();
-		
+
 		MAIN_TYPE_P = model.createProperty(MAIN_TYPE);
 		model.getResource(MAIN_TYPE)
 			.addProperty(RDFS.domain, model.getResource("http://data.mskcc.org/ontologies/oncotree/Oncotree_Concept"));
-		
+
 		COLOR_P = model.createProperty(COLOR);
 		model.getResource(COLOR)
 		.addProperty(RDFS.domain, model.getResource("http://data.mskcc.org/ontologies/oncotree/Oncotree_Concept"));
@@ -90,28 +89,25 @@ public class OncotreeParser {
 		model.getResource(NCCN)
 		.addProperty(RDFS.domain, model.getResource("http://data.mskcc.org/ontologies/oncotree/Oncotree_Concept"));
 
-		
 		// concept scheme
 		model.createResource("http://data.mskcc.org/ontologies/oncotree")
 			.addProperty(RDF.type, SKOS.ConceptScheme)
 			.addProperty(SKOS.hasTopConcept, model.createResource("http://data.mskcc.org/ontologies/oncotree/ONC000001")
 											 .addProperty(SKOS.prefLabel, "Tissue"));
-			
-	
-		
+
 		// oncotree concept class
 		model.createResource("http://data.mskcc.org/ontologies/oncotree/Oncotree_Concept")
 			.addProperty(RDFS.subClassOf, SKOS.Concept);
-		
+
 		for(OncotreeConcept concept: concepts){
 			addConceptIntoModel(concept, model);
 		}
-		
-		return model;		
+
+		return model;
 	}
-	
+
 	private static void addConceptIntoModel(OncotreeConcept concept, Model model){
-		
+
 		// check if need to create primary
 		ResIterator it = model.listResourcesWithProperty(SKOS.prefLabel, concept.getPrimary().substring(0, concept.getPrimary().indexOf("(")));
 
@@ -123,33 +119,33 @@ public class OncotreeParser {
 				.addProperty(SKOS.narrower, c);
 			addLabels(c, concept.getPrimary());
 		}
-		
+
 		String conceptURI = createConceptId();
 		Resource c = model.createResource(conceptURI);
 		c.addProperty(RDF.type, model.getResource("http://data.mskcc.org/ontologies/oncotree/Oncotree_Concept"));
 		if(concept.getColor()!=null && !StringUtils.isEmpty(concept.getColor())){
 			c.addProperty(COLOR_P, concept.getColor());
 		}
-		
+
 		if(concept.getMainType()!=null && !StringUtils.isEmpty(concept.getMainType())){
 			c.addProperty(MAIN_TYPE_P, concept.getMainType());
 		}
-		
+
 		if(concept.getNccn()!=null && !StringUtils.isEmpty(concept.getNccn())){
 			c.addProperty(NCCN_P, concept.getNccn());
 		}
-		
+
 		if(concept.getNci()!=null && !StringUtils.isEmpty(concept.getNci())){
 			c.addProperty(NCI_P, concept.getNci());
 		}
-		
+
 		if(concept.getUmls()!=null && !StringUtils.isEmpty(concept.getUmls())){
 			c.addProperty(UMLS_P, concept.getUmls());
 		}
 
 		addParentAndChildren(c, concept, model);
 	}
-	
+
 	private static Resource createConcept(Model model, Resource r, String label){
 		String conceptUri = createConceptId();
 		Resource c = model.createResource(conceptUri)
@@ -157,13 +153,13 @@ public class OncotreeParser {
 		addLabels(c, label);
 		return c;
 	}
-	
+
 	private static void connectPrimaryToRootNode(Resource r, Model model){
 		r.addProperty(SKOS.broader, model.getResource("http://data.mskcc.org/ontologies/oncotree/ONC000001"));
 	}
-	
+
 	private static void addParentAndChildren(Resource r, OncotreeConcept concept, Model model){
-			
+
 		// Tissue parent (primary)
 		if(concept.getIdx() == 0){
 			r.addProperty(SKOS.broader, model.getResource("http://data.mskcc.org/ontologies/oncotree/ONC000001"));
@@ -172,7 +168,7 @@ public class OncotreeParser {
 			addLabels(r, concept.getPrimary());
 			return;
 		}
-		
+
 		// secondary
 		if(concept.getIdx() == 1){
 			ResIterator it = model.listResourcesWithProperty(SKOS.prefLabel, concept.getPrimary().substring(0, concept.getPrimary().indexOf("(")));
@@ -180,17 +176,16 @@ public class OncotreeParser {
 				Resource p = it.nextResource();
 				r.addProperty(SKOS.broader, p);
 				model.getResource(p.getURI())
-					.addProperty(SKOS.narrower, r);			
+					.addProperty(SKOS.narrower, r);
 			}else{
 				Resource p = createConcept(model, r, concept.getPrimary());
 				r.addProperty(SKOS.broader, p);
 				connectPrimaryToRootNode(p, model);
-			}			
+			}
 			addLabels(r, concept.getSecondary());
 			return;
-		} 
-		
-		
+		}
+
 		// terciary
 		if(concept.getIdx() == 2){
 			ResIterator it = model.listResourcesWithProperty(SKOS.prefLabel, concept.getSecondary().substring(0, concept.getSecondary().indexOf("(")));
@@ -198,12 +193,12 @@ public class OncotreeParser {
 				Resource p = it.nextResource();
 				r.addProperty(SKOS.broader, p);
 				model.getResource(p.getURI())
-					.addProperty(SKOS.narrower, r);	
+					.addProperty(SKOS.narrower, r);
 			}else{
 				// creates secondary
 				Resource secondary = createConcept(model, r, concept.getSecondary());
 				r.addProperty(SKOS.broader, secondary);
-				
+
 				// checks if primary exist
 				ResIterator itp = model.listResourcesWithProperty(SKOS.prefLabel, concept.getPrimary().substring(0, concept.getPrimary().indexOf("(")));
 				if(itp.hasNext()){
@@ -219,9 +214,8 @@ public class OncotreeParser {
 			}
 			addLabels(r, concept.getTerciary());
 			return;
-		} 
-		
-		
+		}
+
 		// quaternary
 		if(concept.getIdx() == 3){
 			ResIterator it = model.listResourcesWithProperty(SKOS.prefLabel, concept.getTerciary().substring(0, concept.getTerciary().indexOf("(")));
@@ -229,24 +223,24 @@ public class OncotreeParser {
 				Resource p = it.nextResource();
 				r.addProperty(SKOS.broader, p);
 				model.getResource(p.getURI())
-					.addProperty(SKOS.narrower, r);	
+					.addProperty(SKOS.narrower, r);
 			}else{
 				// creates terciary
 				Resource terciary = createConcept(model, r, concept.getTerciary());
 				r.addProperty(SKOS.broader, terciary);
-				
+
 				// check if secondary exists
 				ResIterator its = model.listResourcesWithProperty(SKOS.prefLabel, concept.getSecondary().substring(0, concept.getSecondary().indexOf("(")));
 				if(its.hasNext()){
 					Resource secondary = its.nextResource();
 					terciary.addProperty(SKOS.broader, secondary);
-					secondary.addProperty(SKOS.narrower, terciary);					
+					secondary.addProperty(SKOS.narrower, terciary);
 				}
 				else{
 					// create secondary
 					Resource secondary = createConcept(model, terciary, concept.getSecondary());
 					terciary.addProperty(SKOS.broader, secondary);
-					
+
 					// check if primary exists
 					ResIterator itp = model.listResourcesWithProperty(SKOS.prefLabel, concept.getPrimary().substring(0, concept.getPrimary().indexOf("(")));
 					if(itp.hasNext()){
@@ -264,9 +258,8 @@ public class OncotreeParser {
 			}
 			addLabels(r, concept.getQuaternary());
 			return;
-		} 
-		
-		
+		}
+
 		// quinternary
 		if(concept.getIdx() == 4){
 			ResIterator it = model.listResourcesWithProperty(SKOS.prefLabel, concept.getQuaternary().substring(0, concept.getQuaternary().indexOf("(")));
@@ -274,35 +267,35 @@ public class OncotreeParser {
 				Resource p = it.nextResource();
 				r.addProperty(SKOS.broader, p);
 				model.getResource(p.getURI())
-					.addProperty(SKOS.narrower, r);	
+					.addProperty(SKOS.narrower, r);
 			}else{
 				// create quaternary
 				Resource quaternary = createConcept(model, r, concept.getQuaternary());
 				r.addProperty(SKOS.broader, quaternary);
-				
+
 				// check if terciary exists
 				ResIterator itt = model.listResourcesWithProperty(SKOS.prefLabel, concept.getTerciary().substring(0, concept.getTerciary().indexOf("(")));
 				if(itt.hasNext()){
 					Resource terciary = itt.nextResource();
 					quaternary.addProperty(SKOS.broader, terciary);
-					terciary.addProperty(SKOS.narrower, r);	
+					terciary.addProperty(SKOS.narrower, r);
 				}else{
 					// creates terciary
 					Resource terciary = createConcept(model, quaternary, concept.getTerciary());
 					r.addProperty(SKOS.broader, terciary);
-					
+
 					// check if secondary exists
 					ResIterator its = model.listResourcesWithProperty(SKOS.prefLabel, concept.getSecondary().substring(0, concept.getSecondary().indexOf("(")));
 					if(its.hasNext()){
 						Resource secondary = its.nextResource();
 						terciary.addProperty(SKOS.broader, secondary);
-						secondary.addProperty(SKOS.narrower, terciary);					
+						secondary.addProperty(SKOS.narrower, terciary);
 					}
 					else{
 						// create secondary
 						Resource secondary = createConcept(model, terciary, concept.getSecondary());
 						terciary.addProperty(SKOS.broader, secondary);
-						
+
 						// check if primary exists
 						ResIterator itp = model.listResourcesWithProperty(SKOS.prefLabel, concept.getPrimary().substring(0, concept.getPrimary().indexOf("(")));
 						if(itp.hasNext()){
@@ -321,10 +314,10 @@ public class OncotreeParser {
 			}
 			addLabels(r, concept.getQuinternary());
 			return;
-		} 
-		
+		}
+
 	}
-	
+
 	private static void addLabels(Resource r, String label){
 		label = label.trim();
 		System.out.println(label);
@@ -333,7 +326,6 @@ public class OncotreeParser {
 		r.addProperty(SKOS.prefLabel, l)
 			.addProperty(SKOS.notation, code);
 	}
-	
 
 	private static String createConceptId(){
 		++id;
@@ -344,12 +336,12 @@ public class OncotreeParser {
 		}
 		return BASE_URL + conceptId + id;
 	}
-	
+
 	private static OncotreeConcept parseOncotreeConcept(String line){
 		OncotreeConcept concept = new OncotreeConcept();
 		String[] segments = line.split("\\|");
 		int idx = -1;
-		
+
 		if(segments[0].startsWith("Peripheral Nervous System")){
 			System.out.println("");
 		}
@@ -370,7 +362,7 @@ public class OncotreeParser {
 			concept.setTerciary(segments[2]);
 			++idx;
 		}
-	
+
 		// quaternary
 		if(segments.length>3 && !StringUtils.isEmpty(segments[3])){
 			concept.setQuaternary(segments[3]);
@@ -392,12 +384,12 @@ public class OncotreeParser {
 		if(segments.length>6 && !StringUtils.isEmpty(segments[6])){
 			concept.setColor(segments[6]);
 		}
-		
+
 		// nci
 		if(segments.length>7 && !StringUtils.isEmpty(segments[7])){
 			concept.setNci(segments[7]);
 		}
-		
+
 		// umls
 		if(segments.length>8 && !StringUtils.isEmpty(segments[8])){
 			concept.setUmls(segments[8]);
@@ -406,10 +398,10 @@ public class OncotreeParser {
 		// nccn
 		if(segments.length>9 && !StringUtils.isEmpty(segments[9])){
 			concept.setNccn(segments[9]);
-		}		
-		
+		}
+
 		concept.setIdx(idx);
-		
+
 		return concept;
 	}
 
